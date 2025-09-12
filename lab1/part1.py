@@ -2,6 +2,11 @@
 """
 Решение задачи линейного программирования для Варианта 15 с визуализацией.
 Цель: Максимизация выпуска деталей при ограничениях на ресурсы станков.
+Данные соответствуют Excel:
+Токарный: [2, 0, 3, 4, 1]
+Фрезерный: [1, 2, 3, 2, 1]
+Строгальный: [1, 1, 1, 0, 2]
+Шлифовальный: [3, 2, 0, 1, 1]
 """
 
 # Импорт необходимых библиотек
@@ -15,12 +20,14 @@ import matplotlib.pyplot as plt
 c = [-1, -1, -1, -1, -1]
 
 # Матрица коэффициентов ограничений "меньше или равно" (A_ub * x <= b_ub)
+# Обновлено согласно данным из Excel
 A_ub = [
-    [2, 0, 3, 2, 1],  # Токарный станок
-    [1, 2, 3, 0, 1],  # Фрезерный станок
-    [1, 1, 1, 2, 2],  # Строгальный станок
-    [3, 0, 2, 1, 1]   # Шлифовальный станок
+    [2, 0, 3, 4, 1],  # Токарный
+    [1, 2, 3, 2, 1],  # Фрезерный
+    [1, 1, 1, 0, 2],  # Строгальный
+    [3, 2, 0, 1, 1]   # Шлифовальный
 ]
+
 b_ub = [4100, 2000, 5800, 10800] # Ресурсы времени
 
 # Границы переменных (x_i >= 0)
@@ -63,10 +70,10 @@ machine_types = ['Токарный', 'Фрезерный', 'Строгальны
 resource_available = b_ub
 # Рассчитываем фактически использованное время для каждого станка
 resource_used = [
-    2*optimal_quantities[0] + 0*optimal_quantities[1] + 3*optimal_quantities[2] + 2*optimal_quantities[3] + 1*optimal_quantities[4], # Токарный
-    1*optimal_quantities[0] + 2*optimal_quantities[1] + 3*optimal_quantities[2] + 0*optimal_quantities[3] + 1*optimal_quantities[4], # Фрезерный
-    1*optimal_quantities[0] + 1*optimal_quantities[1] + 1*optimal_quantities[2] + 2*optimal_quantities[3] + 2*optimal_quantities[4], # Строгальный
-    3*optimal_quantities[0] + 0*optimal_quantities[1] + 2*optimal_quantities[2] + 1*optimal_quantities[3] + 1*optimal_quantities[4]  # Шлифовальный
+    2*optimal_quantities[0] + 0*optimal_quantities[1] + 3*optimal_quantities[2] + 4*optimal_quantities[3] + 1*optimal_quantities[4], # Токарный
+    1*optimal_quantities[0] + 2*optimal_quantities[1] + 3*optimal_quantities[2] + 2*optimal_quantities[3] + 1*optimal_quantities[4], # Фрезерный
+    1*optimal_quantities[0] + 1*optimal_quantities[1] + 1*optimal_quantities[2] + 0*optimal_quantities[3] + 2*optimal_quantities[4], # Строгальный
+    3*optimal_quantities[0] + 2*optimal_quantities[1] + 0*optimal_quantities[2] + 1*optimal_quantities[3] + 1*optimal_quantities[4]  # Шлифовальный
 ]
 
 x_pos = np.arange(len(machine_types))
@@ -90,9 +97,12 @@ ax2.grid(axis='y', linestyle='--', alpha=0.7)
 ax2.set_axisbelow(True)
 
 # Добавляем общий вывод на figure
-plt.figtext(0.02, 0.02, f'ВЫВОД: Максимальный выпуск составляет {int(total_output)} деталей.\n'
-                        f'Для этого необходимо производить {int(optimal_quantities[1])} дет. по технологии 2\n'
-                        f'и {int(optimal_quantities[4])} дет. по технологии 5.',
+output_text = f'ВЫВОД: Максимальный выпуск составляет {int(total_output)} деталей.\n'
+for i, tech in enumerate(technologies):
+    if optimal_quantities[i] > 0:
+        output_text += f'Для этого необходимо производить {int(optimal_quantities[i])} дет. по технологии {i+1}\n'
+
+plt.figtext(0.02, 0.02, output_text,
             bbox=dict(boxstyle="round,pad=0.5", facecolor="lightgray", alpha=0.8),
             fontsize=11, fontweight='bold')
 
@@ -113,4 +123,8 @@ print(f"\nМаксимальный суммарный выпуск: {total_outpu
 print("\nПроверка использования ресурсов:")
 for i, machine in enumerate(machine_types):
     print(f"  {machine}: {resource_used[i]:.0f} / {resource_available[i]} мин. ({(resource_used[i]/resource_available[i])*100:.1f}%)")
+
+print("\nСравнение с решением из Excel:")
+print("Из Excel: T1=0, T2=0, T3=0, T4=0, T5=2000, всего=2000")
+print("Из Python:", f"T1={optimal_quantities[0]:.0f}, T2={optimal_quantities[1]:.0f}, T3={optimal_quantities[2]:.0f}, T4={optimal_quantities[3]:.0f}, T5={optimal_quantities[4]:.0f}, всего={total_output:.0f}")
 print("="*50)

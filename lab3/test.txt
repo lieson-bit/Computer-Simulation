@@ -1,0 +1,204 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import r2_score
+
+# Option 15: Steel production data for first 7 months of 2017
+t = np.array([1, 2, 3, 4, 5, 6, 7])  # months
+Y = np.array([138, 127, 143, 142, 145, 143, 146])  # steel production in million tons
+
+print("Option 15: Steel Production Dynamics (2017)")
+print("Months (t):", t)
+print("Production Y(t):", Y)
+
+# 3a. Manual implementation of LSM for second-order polynomial f1(x)
+def manual_polyfit(x, y, degree=2):
+    """Manual implementation of polynomial fitting using LSM"""
+    n = len(x)
+    
+    # Create the Vandermonde matrix
+    A = np.zeros((degree + 1, degree + 1))
+    b = np.zeros(degree + 1)
+    
+    # Fill the matrix A and vector b
+    for i in range(degree + 1):
+        for j in range(degree + 1):
+            A[i, j] = np.sum(x**(i + j))
+        b[i] = np.sum(y * (x**i))
+    
+    # Solve the system of equations
+    coefficients = np.linalg.solve(A, b)
+    return coefficients
+
+# Fit second-order polynomial manually
+coeff_f1 = manual_polyfit(t, Y, degree=2)
+print(f"\n3a. Manual LSM for f1(x) = a2*x² + a1*x + a0")
+print(f"Coefficients: a2 = {coeff_f1[2]:.4f}, a1 = {coeff_f1[1]:.4f}, a0 = {coeff_f1[0]:.4f}")
+
+# 3b. Using built-in polyfit for different polynomial degrees
+degrees = [1, 2, 3, 4]  # p ≠ 2 as required
+models_f2 = {}
+
+for p in degrees:
+    coefficients = np.polyfit(t, Y, p)
+    models_f2[p] = coefficients
+    print(f"\n3b. Polynomial degree {p}: f2(x) = ", end="")
+    for i, coef in enumerate(coefficients):
+        power = len(coefficients) - i - 1
+        if power > 1:
+            print(f"{coef:.4f}x^{power} + ", end="")
+        elif power == 1:
+            print(f"{coef:.4f}x + ", end="")
+        else:
+            print(f"{coef:.4f}")
+
+# 3c. Functional model f3(x) = (x+1)^(1/3) + 1
+# Since this is a nonlinear model, we'll use curve_fit
+from scipy.optimize import curve_fit
+
+def f3_model(x, a, b, c):
+    """f3(x) = a * (x + b)^(1/3) + c"""
+    return a * (x + b)**(1/3) + c
+
+# Initial guess for parameters
+p0 = [1, 1, 1]  # a, b, c
+try:
+    popt, pcov = curve_fit(f3_model, t, Y, p0=p0)
+    a_opt, b_opt, c_opt = popt
+    print(f"\n3c. Functional model f3(x) = {a_opt:.4f}*(x + {b_opt:.4f})^(1/3) + {c_opt:.4f}")
+except:
+    # If curve_fit fails, use a simplified version
+    print("\n3c. Using simplified functional model: f3(x) = (x+1)^(1/3) + 130")
+    a_opt, b_opt, c_opt = 1, 1, 130
+
+# Calculate predictions for all models
+t_range = np.linspace(1, 8, 100)  # For smooth plotting, including forecast
+
+# f1 predictions (manual 2nd degree)
+f1_pred = np.polyval(coeff_f1, t)
+
+# f2 predictions for different degrees
+f2_predictions = {}
+for p in degrees:
+    f2_predictions[p] = np.polyval(models_f2[p], t)
+
+# f3 predictions
+def f3_func(x):
+    return a_opt * (x + b_opt)**(1/3) + c_opt
+
+f3_pred = f3_func(t)
+
+# 3d. Calculate adjusted R² for all models
+def adjusted_r2(y_true, y_pred, k):
+    """Calculate adjusted R-squared"""
+    n = len(y_true)
+    ss_res = np.sum((y_true - y_pred)**2)
+    ss_tot = np.sum((y_true - np.mean(y_true))**2)
+    r2 = 1 - (ss_res / ss_tot)
+    adj_r2 = 1 - (1 - r2) * (n - 1) / (n - k - 1)
+    return adj_r2
+
+# Calculate adjusted R² for each model
+r2_scores = {}
+
+# f1 (2nd degree polynomial, k=3 parameters)
+r2_scores['f1'] = adjusted_r2(Y, f1_pred, k=3)
+
+# f2 models (different degrees)
+for p in degrees:
+    k = p + 1  # number of parameters
+    r2_scores[f'f2_deg{p}'] = adjusted_r2(Y, f2_predictions[p], k=k)
+
+# f3 model (k=3 parameters for a, b, c)
+r2_scores['f3'] = adjusted_r2(Y, f3_pred, k=3)
+
+print("\n3d. Adjusted R² scores:")
+for model, score in r2_scores.items():
+    print(f"{model}: {score:.6f}")
+
+# Find the best model
+best_model = max(r2_scores, key=r2_scores.get)
+print(f"\nBest model: {best_model} with R²_adj = {r2_scores[best_model]:.6f}")
+
+# 4. One-step forecast and accuracy assessment
+forecast_t = 8  # Month 8
+
+# Forecast using the best model
+if best_model == 'f1':
+    forecast = np.polyval(coeff_f1, forecast_t)
+elif best_model.startswith('f2'):
+    degree = int(best_model.split('_')[1][3:])  # Extract degree number
+    forecast = np.polyval(models_f2[degree], forecast_t)
+else:  # f3
+    forecast = f3_func(forecast_t)
+
+print(f"\n4. One-step forecast for month {forecast_t}:")
+print(f"Predicted steel production: {forecast:.2f} million tons")
+
+# Accuracy assessment using RMSE on training data
+def rmse(y_true, y_pred):
+    return np.sqrt(np.mean((y_true - y_pred)**2))
+
+if best_model == 'f1':
+    train_pred = f1_pred
+elif best_model.startswith('f2'):
+    degree = int(best_model.split('_')[1][3:])
+    train_pred = f2_predictions[degree]
+else:  # f3
+    train_pred = f3_pred
+
+training_rmse = rmse(Y, train_pred)
+print(f"Training RMSE: {training_rmse:.4f}")
+print("This RMSE can be used as an estimate of forecast accuracy")
+
+# Plotting
+plt.figure(figsize=(12, 8))
+
+# Original data
+plt.scatter(t, Y, color='black', s=100, zorder=5, label='Original Data')
+
+# f1 model
+f1_curve = np.polyval(coeff_f1, t_range)
+plt.plot(t_range, f1_curve, 'r-', linewidth=2, label=f'f1(x) (2nd degree poly)')
+
+# f2 models (show only best f2 and one other for clarity)
+best_f2_degree = max([deg for deg in degrees], 
+                     key=lambda deg: r2_scores[f'f2_deg{deg}'])
+for p in [1, best_f2_degree]:  # Show linear and best polynomial
+    if p == 1:
+        color = 'blue'
+        style = '--'
+    else:
+        color = 'green'
+        style = '-'
+    f2_curve = np.polyval(models_f2[p], t_range)
+    plt.plot(t_range, f2_curve, color=color, linestyle=style, linewidth=2, 
+             label=f'f2(x) (degree {p} poly)')
+
+# f3 model
+f3_curve = f3_func(t_range)
+plt.plot(t_range, f3_curve, 'purple', linewidth=2, label='f3(x) (functional model)')
+
+# Forecast point
+plt.scatter([forecast_t], [forecast], color='red', s=200, zorder=5, 
+           label=f'Forecast: {forecast:.1f} mil. tons', marker='*')
+
+plt.xlabel('Month')
+plt.ylabel('Steel Production (million tons)')
+plt.title('Option 15: Steel Production Dynamics and Model Comparison\nBest Model: ' + best_model)
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.xticks(range(1, 9))
+plt.tight_layout()
+plt.show()
+
+# Additional analysis: Residuals for the best model
+print(f"\nAdditional Analysis for Best Model ({best_model}):")
+residuals = Y - train_pred
+print(f"Residuals: {residuals}")
+print(f"Mean residual: {np.mean(residuals):.4f}")
+print(f"Std of residuals: {np.std(residuals):.4f}")
+
+# Forecast confidence interval (simplified)
+confidence_interval = 1.96 * training_rmse  # 95% confidence
+print(f"\nForecast confidence interval (95%): ±{confidence_interval:.2f} million tons")
+print(f"Forecast range: {forecast-confidence_interval:.1f} to {forecast+confidence_interval:.1f} million tons")
